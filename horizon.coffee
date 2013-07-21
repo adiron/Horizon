@@ -3,6 +3,9 @@ window.HorizonGenerator = {} # Hosts generator functions.
 utils = {} # Hosts various local utilities. 
   
 Math.clamp = (value, min, max) ->
+	# Fuck js.
+	# Do you realize this is one single line?
+	# One.
 	if min > value then min else if max < value then max else value 
   
 class window.HorizonHook 
@@ -67,14 +70,22 @@ class window.HorizonHook
 		false 
 	  
 class window.Horizon 
-	constructor: (@the_window = window, skip_bind = false) ->
-		# if typeof @the_window is "function" 
+	constructor: (@window = window, skip_bind = false) ->
+		# Where window is either:
+		# * the window DOM object; or
+		# * a function which returns a number which will be used as an offset
+		# if skip_bind is true, Horizon will not bind itself to window's
+		# refresh function. This is useful in case the target object isn't
+		# actually the window, but a smaller frame etc.
 		@hooks = []
-		@get_offset = () => jQuery(@the_window).scrollTop()
-  
-		if not skip_bind 
-			jQuery(the_window).scroll =>
-				@refresh()
+	
+		if typeof @window is "function"
+			@get_offset = () -> @window
+			if not skip_bind 
+				jQuery(@window).scroll =>
+					@refresh()
+		else
+			@get_offset = () => jQuery(@window).scrollTop()
   
 	register_hook: (hook) ->
 		@hooks.push hook 
@@ -96,11 +107,12 @@ utils.interpolate_css = (start, end, frac) ->
 		start + ((end - start) * frac)
 	else if typeof start is "string"
 		# Otherwise things could get complicated. 
+		# TODO: THIS.
 		0 
   
   
 utils.lambda_for_css_property = (element, property, params) ->
-	# retuns the lambda for property with params. 
+	# retuns the lambda for property with params to be used in the hook.
 	(offset_frac, offset_rel) ->
 		if Horizon_VERBOSE 
 			console.log "Changing CSS property #{property} to 
