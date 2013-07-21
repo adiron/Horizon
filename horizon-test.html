@@ -36,6 +36,17 @@
 			console.log("Current offset: " + offset_frac)
 		})
 
+		c.register_hook(HorizonGenerator.CSSHook("#explain1", {
+					height: {
+						start: 150,
+						end: 300
+					},
+					"margin-top": {
+						start: 10,
+						end: 100
+					}
+				}, {start: 200, size: 200}))
+
 	})
 
 	</script>
