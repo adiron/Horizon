@@ -19,7 +19,7 @@ class window.HorizonHook
 		"HorizonHook #{@min}-#{@max}, offset #{@offset} (#{@get_offset_frac()}/1), edges-state #{@edges_state}"
   
 	invoke: () ->
-		# Call the lambda. 
+		# Call the lambda regardless of whether it needs to or not.
 		console.log "Invoking: #{@repr()}" if Horizon_VERBOSE 
 		@lambda.call this, @get_offset_frac(), @offset
   
