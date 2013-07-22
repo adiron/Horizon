@@ -80,12 +80,14 @@ class window.Horizon
 		@hooks = []
 	
 		if typeof @window is "function"
-			@get_offset = () -> @window
+			console.log "Got function for @window."
+			@get_offset = () -> @window()
+		else
+			@get_offset = () => jQuery(@window).scrollTop()
 			if not skip_bind 
 				jQuery(@window).scroll =>
 					@refresh()
-		else
-			@get_offset = () => jQuery(@window).scrollTop()
+
   
 	register_hook: (hook) ->
 		@hooks.push hook 
