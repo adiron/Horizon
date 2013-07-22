@@ -104,15 +104,31 @@ class window.Horizon
   
 utils.interpolate_css = (start, end, frac) ->
 	#Interpolates between two CSS values. 
-	if typeof start is "number"
-		# It's now known to me that it's a number. In this case, simple interpolation 
+	if typeof start is "string"
+		# Parse scales and stuff.
+		parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
+		if parts.length is 1
+			# This means the user passed a number as a string.
+			start = parseFloat(start)
+		else
+			scale = parts[2]
+			start = parseFloat(parts[1])
+
+		# Now the end bit.
+		end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
+		if end_parts.length is 1
+			# This means the user passed a number as a string.
+			end = parseFloat(end)
+		else
+			# Scale is implied. May not be the best strategy.
+			end = parseFloat(end_parts[1])
+
+	# It's now known to me that it's a number. In this case, simple interpolation 
+	if not scale?
 		start + ((end - start) * frac)
-	else if typeof start is "string"
-		# Otherwise things could get complicated. 
-		# TODO: THIS.
-		0 
-  
-  
+	else
+		res = (start + ((end - start) * frac))
+		res.toString() + scale
 utils.lambda_for_css_property = (element, property, params) ->
 	# retuns the lambda for property with params to be used in the hook.
 	(offset_frac, offset_rel) ->

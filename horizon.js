@@ -168,10 +168,27 @@
   })();
 
   utils.interpolate_css = function(start, end, frac) {
-    if (typeof start === "number") {
+    var end_parts, parts, res, scale;
+    if (typeof start === "string") {
+      parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
+      if (parts.length === 1) {
+        start = parseFloat(start);
+      } else {
+        scale = parts[2];
+        start = parseFloat(parts[1]);
+      }
+      end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
+      if (end_parts.length === 1) {
+        end = parseFloat(end);
+      } else {
+        end = parseFloat(end_parts[1]);
+      }
+    }
+    if (scale == null) {
       return start + ((end - start) * frac);
-    } else if (typeof start === "string") {
-      return 0;
+    } else {
+      res = start + ((end - start) * frac);
+      return res.toString() + scale;
     }
   };
 
