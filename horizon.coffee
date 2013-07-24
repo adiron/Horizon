@@ -14,7 +14,7 @@ class window.HorizonHook
 		# max is the maximum offset at which this hook ends. 
 		@edges_state = 0 #-1 when minned, 1 when maxed, 0 when neither (hypothetically) 
 		@offset = 0
-  
+
 	repr: () ->
 		"HorizonHook #{@min}-#{@max}, offset #{@offset} (#{@get_offset_frac()}/1), edges-state #{@edges_state}"
   
@@ -136,7 +136,7 @@ utils.lambda_for_css_property = (element, property, params) ->
 			console.log "Changing CSS property #{property} to 
 			#{utils.interpolate_css(params.start, params.end, offset_frac)}"
 		element.css property, utils.interpolate_css(params.start, params.end, offset_frac)
-  
+
 window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	# animation contains a list of properties and their animations. Example: 
 	# animation =  
