@@ -15,8 +15,17 @@ The most simple use case:
 	// Use this method. It generates a new hook based on your input and then registers it.
 	// (just so you don't have to do it yourself.)
 	c.new_hook(600, 600+255, function(offset_frac, offset) {
-		$("#explain1").css({"opacity": 1 - offset_frac})
+		$("#somebox").css({"opacity": 1 - offset_frac})
 	})
+	
+or alternatively:
+
+	c.register_hook(
+		HorizonGenerator.CSSHook("#somebox",
+								 {"opacity": {"start": 1, "end": 0}}, // parameters to animate
+								 {"start": 600, "size": 255} // options
+								 )
+	)
 
 ## Code documentation
 
@@ -38,8 +47,17 @@ Returns a Python-esque string representation of the hook. For debugging purposes
 
 **This function should not be called manually.** This method is called whenever the lambda needs to be called. It does NOT check whether it SHOULD run in fact and does not update the offset either.
 
-(I'll get to the rest of it later)
 
 #### Lambda
 
-More on this later.
+The lambda referenced in `HorizonHook` and other places is a function which should contain animation code. It takes two arguments:
+
+	function (frac_offset, relative_offset)
+
+`frac_offset` is what fraction of the animation we are in. This is useful, because you can (most of the time?) just have it perform animation code and use it as a multiplier:
+
+	something.css({"width" : 200 + (300 * frac_offset)})
+
+`relative_offset` is more situational and generally speaking optional, since the function would work just as well had it been written this way:
+
+	function (frac_offset)

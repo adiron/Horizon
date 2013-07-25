@@ -19,12 +19,18 @@
   };
 
   window.HorizonHook = (function() {
-    function HorizonHook(min, max, lambda) {
+    function HorizonHook(min, max, lambda, easing) {
       this.min = min;
       this.max = max;
       this.lambda = lambda;
+      this.easing = easing;
       this.edges_state = 0;
       this.offset = 0;
+      if (this.easing != null) {
+        if (typeof this.easing === "string") {
+          this.easing = jQuery.easing[this.easing];
+        }
+      }
     }
 
     HorizonHook.prototype.repr = function() {
@@ -35,7 +41,14 @@
       if (Horizon_VERBOSE) {
         console.log("Invoking: " + (this.repr()));
       }
-      return this.lambda.call(this, this.get_offset_frac(), this.offset);
+      if (this.easing != null) {
+        if (Horizon_VERBOSE) {
+          console.log("(Raw: " + (this.get_offset_frac()) + ", with easing: " + (this.easing(this.get_offset_frac(), this.offset, this.min, this.max, this.get_range())) + ")");
+        }
+        return this.lambda.call(this, this.easing(this.get_offset_frac(), this.offset, this.min, this.max, this.get_range()), this.offset);
+      } else {
+        return this.lambda.call(this, this.get_offset_frac(), this.offset);
+      }
     };
 
     HorizonHook.prototype.get_range = function() {
@@ -114,7 +127,9 @@
       }
       this.hooks = [];
       if (typeof this.window === "function") {
-        console.log("Got function for @window.");
+        if (Horizon_VERBOSE) {
+          console.log("Got function for @window.");
+        }
         this.get_offset = function() {
           return this.window();
         };
@@ -224,7 +239,7 @@
       }
       return _results;
     };
-    hook = new HorizonHook(options.start, options.start + options.size, f);
+    hook = new HorizonHook(options.start, options.start + options.size, f, options.easing);
     return hook;
   };
 

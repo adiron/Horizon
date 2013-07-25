@@ -9,11 +9,15 @@ Math.clamp = (value, min, max) ->
 	if min > value then min else if max < value then max else value 
   
 class window.HorizonHook 
-	constructor: (@min, @max, @lambda) ->
+	constructor: (@min, @max, @lambda, @easing) ->
 		# min is the minimum offset at which this hook begins. 
 		# max is the maximum offset at which this hook ends. 
 		@edges_state = 0 #-1 when minned, 1 when maxed, 0 when neither (hypothetically) 
 		@offset = 0
+
+		if @easing?
+			if typeof @easing is "string"
+				@easing = jQuery.easing[@easing]
 
 	repr: () ->
 		"HorizonHook #{@min}-#{@max}, offset #{@offset} (#{@get_offset_frac()}/1), edges-state #{@edges_state}"
@@ -21,8 +25,17 @@ class window.HorizonHook
 	invoke: () ->
 		# Call the lambda regardless of whether it needs to or not.
 		console.log "Invoking: #{@repr()}" if Horizon_VERBOSE 
-		@lambda.call this, @get_offset_frac(), @offset
-  
+		# @lambda.call this, @get_offset_frac(), @offset
+		if @easing?
+			console.log "(Raw: #{@get_offset_frac()}, with easing: #{@easing(@get_offset_frac(), @offset, @min, @max, @get_range())})" if Horizon_VERBOSE
+			@lambda.call this,
+				@easing(@get_offset_frac(), @offset, @min, @max, @get_range()),
+				@offset
+		else
+			@lambda.call this,
+				@get_offset_frac()
+				@offset
+
 	get_range: () ->
 		# Gets the total range of the hook. 
 		@max - @min
@@ -80,7 +93,7 @@ class window.Horizon
 		@hooks = []
 	
 		if typeof @window is "function"
-			console.log "Got function for @window."
+			console.log "Got function for @window." if Horizon_VERBOSE
 			@get_offset = () -> @window()
 		else
 			@get_offset = () => jQuery(@window).scrollTop()
@@ -161,5 +174,5 @@ window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 		l.call(this, offset_frac, offset_rel) for l in lambdas 
   
 	# Now generate the function that will be used for the hooks 
-	hook = new HorizonHook options.start, options.start + options.size, f 
+	hook = new HorizonHook options.start, options.start + options.size, f, options.easing
 	hook 
