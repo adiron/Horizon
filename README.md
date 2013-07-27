@@ -31,13 +31,15 @@ or alternatively:
 
 ### *HorizonHook* Class
 
-	constructor: (min, max, lambda)
+	constructor: (min, max, lambda, easing)
 
 `min` refers to the beginning of the scrolling hook.
 
 `max` is the end of it. The range of the hook is essentially `max - min`.
 
 `lambda` is the function which will be called for every time Horizon sees fit to refresh it.
+
+`easing` is the easing function to be used. Takes either a function or a string, where the string a reference to a member of `jQuery.easing`.
 
 	repr: ()
 
@@ -46,6 +48,19 @@ Returns a Python-esque string representation of the hook. For debugging purposes
 	invoke: ()
 
 **This function should not be called manually.** This method is called whenever the lambda needs to be called. It does NOT check whether it SHOULD run in fact and does not update the offset either.
+
+	get_range: ()
+
+Returns the total range covered by the hook.
+
+	get_offset_pct: () ->
+	get_offset_frac: () ->
+
+Returns the current offset in percents or a fraction respectively.
+
+	should_fire: (absolute_offset = @offset, force_fire = false) ->
+
+Checks whether the hook should fire **but does not invoke it**, where `absolute_offset` is equal to 
 
 
 #### Lambda
@@ -61,3 +76,9 @@ The lambda referenced in `HorizonHook` and other places is a function which shou
 `relative_offset` is more situational and generally speaking optional, since the function would work just as well had it been written this way:
 
 	function (frac_offset)
+
+##### A note about easing
+
+If you write your own lambda (which is not optimal, but you might), you don't need to do the easing yourself in the lambda. For greater code portability, just don't.
+
+Easing is defined per hook, and the values your lambda will get will already have been put through the easing function of your choice.

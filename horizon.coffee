@@ -1,5 +1,4 @@
-window.Horizon_VERBOSE = false 
-window.HorizonGenerator = {} # Hosts generator functions. 
+window.HorizonGenerator = {} # Hosts generator functions.
 utils = {} # Hosts various local utilities. 
   
 Math.clamp = (value, min, max) ->
@@ -24,10 +23,10 @@ class window.HorizonHook
   
 	invoke: () ->
 		# Call the lambda regardless of whether it needs to or not.
-		console.log "Invoking: #{@repr()}" if Horizon_VERBOSE 
+		console.log "Invoking: #{@repr()}" if Horizon.VERBOSE 
 		# @lambda.call this, @get_offset_frac(), @offset
 		if @easing?
-			console.log "(Raw: #{@get_offset_frac()}, with easing: #{@easing(@get_offset_frac(), @offset, @min, @max, @get_range())})" if Horizon_VERBOSE
+			console.log "(Raw: #{@get_offset_frac()}, with easing: #{@easing(@get_offset_frac(), @offset, @min, @max, @get_range())})" if Horizon.VERBOSE
 			@lambda.call this,
 				@easing(@get_offset_frac(), @offset, @min, @max, @get_range()),
 				@offset
@@ -49,17 +48,17 @@ class window.HorizonHook
 	should_fire: (absolute_offset = @offset, force_fire = false) ->
 		# Checks if the hook should fire at all. 
 		@offset = Math.clamp(absolute_offset, @min, @max) - @min
-		console.log "Current offset: abs #{absolute_offset}, rel #{@offset}" if Horizon_VERBOSE 
+		console.log "Current offset: abs #{absolute_offset}, rel #{@offset}" if Horizon.VERBOSE 
   
 		# If the offset is between the min 0 and max. 
 		if 0 < @offset < @get_range() 
 			@edges_state = 0
-			console.log "Offset falls within boundaries." if Horizon_VERBOSE 
+			console.log "Offset falls within boundaries." if Horizon.VERBOSE 
 			return true 
   
 		# We shouldn't run if the edge state doesn't say we should: 
 		if (@edges_state == -1 and @offset == 0) or (@edges_state == 1 and @offset == @get_range())
-			console.log "Should not run. Edge state: #{@edges_state}" if Horizon_VERBOSE 
+			console.log "Should not run. Edge state: #{@edges_state}" if Horizon.VERBOSE 
 			return false
   
 		if @offset == 0 # We're right at the beginning 
@@ -67,14 +66,14 @@ class window.HorizonHook
 				return false 
 			else
 				@edges_state = -1
-				console.log "Minning." if Horizon_VERBOSE 
+				console.log "Minning." if Horizon.VERBOSE 
 				return true 
 		else if @offset == @get_range() # Max 
 			if @edges_state == 1
 				return false 
 			else
 				@edges_state = 1
-				console.log "Maxing." if Horizon_VERBOSE 
+				console.log "Maxing." if Horizon.VERBOSE 
 				return true 
 		else
 			@edges_state = 0
@@ -93,7 +92,7 @@ class window.Horizon
 		@hooks = []
 	
 		if typeof @window is "function"
-			console.log "Got function for @window." if Horizon_VERBOSE
+			console.log "Got function for @window." if Horizon.VERBOSE
 			@get_offset = () -> @window()
 		else
 			@get_offset = () => jQuery(@window).scrollTop()
@@ -103,17 +102,23 @@ class window.Horizon
 
   
 	register_hook: (hook) ->
-		@hooks.push hook 
-		@init_hook hook if not hook.initialized 
+		@hooks.push hook
+		@hooks.sort (a,b) -> b.min - a.min
   
 	init_hook: (hook) ->
 		hook.invoke() if hook.should_fire(@get_offset(), true)
+		hook.initialized = true
 	  
 	new_hook: (min, max, lambda) ->
 		@register_hook(new HorizonHook min, max, lambda)
   
 	refresh: (offset = @get_offset()) ->
+		@init_hook hook for hook in @hooks when not hook.initialized
 		hook.invoke() for hook in @hooks when hook.should_fire(offset)
+
+	prepare_hooks: () ->
+		@init_hook hook for hook in @hooks when not hook.initialized
+
   
 utils.interpolate_css = (start, end, frac) ->
 	#Interpolates between two CSS values. 
@@ -149,22 +154,27 @@ utils.interpolate_css = (start, end, frac) ->
 			res = (start + ((end - start) * frac))
 			res.toString() + scale
 		when "color"
-			console.log "Interpolating color (#{start}->#{end})" if Horizon_VERBOSE
-			start = utils.convert_to_rgba(start)
-			end = utils.convert_to_rgba(end) 
-			a= start.map (item, idx) ->
-				utils.interpolate_css item, end[idx], frac
-			console.log a
-			console.log "Interpolating color (#{start}->#{end})" if Horizon_VERBOSE
-			utils.rgba_to_css(start.map (item, idx) ->
-				utils.interpolate_css item, end[idx], frac)
+			if not Horizon.HSL_mode
+				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
+				start = utils.convert_to_rgba(start)
+				end = utils.convert_to_rgba(end) 
+				a= start.map (item, idx) ->
+					utils.interpolate_css item, end[idx], frac
+				console.log a
+				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
+				utils.rgba_to_css(start.map (item, idx) ->
+					utils.interpolate_css item, end[idx], frac)
+			else
+				# HSL mode is on. We have to convert the values to HSL first.
+				# TODO
+				0
 		when "int_value"
 			start + ((end - start) * frac)
 		
 utils.lambda_for_css_property = (element, property, params) ->
 	# retuns the lambda for property with params to be used in the hook.
 	(offset_frac, offset_rel) ->
-		if Horizon_VERBOSE 
+		if Horizon.VERBOSE 
 			console.log "Changing CSS property #{property} to 
 			#{utils.interpolate_css(params.start, params.end, offset_frac)}"
 		element.css property, utils.interpolate_css(params.start, params.end, offset_frac)
@@ -197,7 +207,6 @@ utils.convert_to_rgba = (csscolor) ->
 			parseInt color for color in csscolor.match /([0-9]+)/g
 
 utils.rgba_to_css = (r,g,b,a = 1) ->
-
 	if typeof r is "object"
 		# at this point it is assumed that r is an array representing
 		# rgba values respectively.
@@ -238,4 +247,7 @@ window.HorizonGenerator.CSSHook = (selector, animation, options) ->
   
 	# Now generate the function that will be used for the hooks 
 	hook = new HorizonHook options.start, options.start + options.size, f, options.easing
-	hook 
+	hook
+
+window.Horizon.VERBOSE = false 
+window.Horizon.HSL_mode = false

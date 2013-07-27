@@ -2,8 +2,6 @@
 (function() {
   var utils;
 
-  window.Horizon_VERBOSE = false;
-
   window.HorizonGenerator = {};
 
   utils = {};
@@ -38,11 +36,11 @@
     };
 
     HorizonHook.prototype.invoke = function() {
-      if (Horizon_VERBOSE) {
+      if (Horizon.VERBOSE) {
         console.log("Invoking: " + (this.repr()));
       }
       if (this.easing != null) {
-        if (Horizon_VERBOSE) {
+        if (Horizon.VERBOSE) {
           console.log("(Raw: " + (this.get_offset_frac()) + ", with easing: " + (this.easing(this.get_offset_frac(), this.offset, this.min, this.max, this.get_range())) + ")");
         }
         return this.lambda.call(this, this.easing(this.get_offset_frac(), this.offset, this.min, this.max, this.get_range()), this.offset);
@@ -72,18 +70,18 @@
         force_fire = false;
       }
       this.offset = Math.clamp(absolute_offset, this.min, this.max) - this.min;
-      if (Horizon_VERBOSE) {
+      if (Horizon.VERBOSE) {
         console.log("Current offset: abs " + absolute_offset + ", rel " + this.offset);
       }
       if ((0 < (_ref = this.offset) && _ref < this.get_range())) {
         this.edges_state = 0;
-        if (Horizon_VERBOSE) {
+        if (Horizon.VERBOSE) {
           console.log("Offset falls within boundaries.");
         }
         return true;
       }
       if ((this.edges_state === -1 && this.offset === 0) || (this.edges_state === 1 && this.offset === this.get_range())) {
-        if (Horizon_VERBOSE) {
+        if (Horizon.VERBOSE) {
           console.log("Should not run. Edge state: " + this.edges_state);
         }
         return false;
@@ -93,7 +91,7 @@
           return false;
         } else {
           this.edges_state = -1;
-          if (Horizon_VERBOSE) {
+          if (Horizon.VERBOSE) {
             console.log("Minning.");
           }
           return true;
@@ -103,7 +101,7 @@
           return false;
         } else {
           this.edges_state = 1;
-          if (Horizon_VERBOSE) {
+          if (Horizon.VERBOSE) {
             console.log("Maxing.");
           }
           return true;
@@ -127,7 +125,7 @@
       }
       this.hooks = [];
       if (typeof this.window === "function") {
-        if (Horizon_VERBOSE) {
+        if (Horizon.VERBOSE) {
           console.log("Got function for @window.");
         }
         this.get_offset = function() {
@@ -147,15 +145,16 @@
 
     Horizon.prototype.register_hook = function(hook) {
       this.hooks.push(hook);
-      if (!hook.initialized) {
-        return this.init_hook(hook);
-      }
+      return this.hooks.sort(function(a, b) {
+        return b.min - a.min;
+      });
     };
 
     Horizon.prototype.init_hook = function(hook) {
       if (hook.should_fire(this.get_offset(), true)) {
-        return hook.invoke();
+        hook.invoke();
       }
+      return hook.initialized = true;
     };
 
     Horizon.prototype.new_hook = function(min, max, lambda) {
@@ -163,16 +162,36 @@
     };
 
     Horizon.prototype.refresh = function(offset) {
-      var hook, _i, _len, _ref, _results;
+      var hook, _i, _j, _len, _len1, _ref, _ref1, _results;
       if (offset == null) {
         offset = this.get_offset();
       }
       _ref = this.hooks;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        hook = _ref[_i];
+        if (!hook.initialized) {
+          this.init_hook(hook);
+        }
+      }
+      _ref1 = this.hooks;
+      _results = [];
+      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+        hook = _ref1[_j];
+        if (hook.should_fire(offset)) {
+          _results.push(hook.invoke());
+        }
+      }
+      return _results;
+    };
+
+    Horizon.prototype.prepare_hooks = function() {
+      var hook, _i, _len, _ref, _results;
+      _ref = this.hooks;
       _results = [];
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         hook = _ref[_i];
-        if (hook.should_fire(offset)) {
-          _results.push(hook.invoke());
+        if (!hook.initialized) {
+          _results.push(this.init_hook(hook));
         }
       }
       return _results;
@@ -213,21 +232,26 @@
         res = start + ((end - start) * frac);
         return res.toString() + scale;
       case "color":
-        if (Horizon_VERBOSE) {
-          console.log("Interpolating color (" + start + "->" + end + ")");
+        if (!Horizon.HSL_mode) {
+          if (Horizon.VERBOSE) {
+            console.log("Interpolating color (" + start + "->" + end + ")");
+          }
+          start = utils.convert_to_rgba(start);
+          end = utils.convert_to_rgba(end);
+          a = start.map(function(item, idx) {
+            return utils.interpolate_css(item, end[idx], frac);
+          });
+          console.log(a);
+          if (Horizon.VERBOSE) {
+            console.log("Interpolating color (" + start + "->" + end + ")");
+          }
+          return utils.rgba_to_css(start.map(function(item, idx) {
+            return utils.interpolate_css(item, end[idx], frac);
+          }));
+        } else {
+          return 0;
         }
-        start = utils.convert_to_rgba(start);
-        end = utils.convert_to_rgba(end);
-        a = start.map(function(item, idx) {
-          return utils.interpolate_css(item, end[idx], frac);
-        });
-        console.log(a);
-        if (Horizon_VERBOSE) {
-          console.log("Interpolating color (" + start + "->" + end + ")");
-        }
-        return utils.rgba_to_css(start.map(function(item, idx) {
-          return utils.interpolate_css(item, end[idx], frac);
-        }));
+        break;
       case "int_value":
         return start + ((end - start) * frac);
     }
@@ -235,7 +259,7 @@
 
   utils.lambda_for_css_property = function(element, property, params) {
     return function(offset_frac, offset_rel) {
-      if (Horizon_VERBOSE) {
+      if (Horizon.VERBOSE) {
         console.log("Changing CSS property " + property + " to 			" + (utils.interpolate_css(params.start, params.end, offset_frac)));
       }
       return element.css(property, utils.interpolate_css(params.start, params.end, offset_frac));
@@ -321,6 +345,10 @@
     hook = new HorizonHook(options.start, options.start + options.size, f, options.easing);
     return hook;
   };
+
+  window.Horizon.VERBOSE = false;
+
+  window.Horizon.HSL_mode = false;
 
 }).call(this);
 
