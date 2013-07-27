@@ -183,27 +183,53 @@
   })();
 
   utils.interpolate_css = function(start, end, frac) {
-    var end_parts, parts, res, scale;
+    var a, end_parts, mode, parts, res, scale;
     if (typeof start === "string") {
-      parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
-      if (parts.length === 1) {
-        start = parseFloat(start);
+      start = start.toLowerCase();
+      end = end.toLowerCase();
+      if ((start[0] === "#") || (start.slice(0, 3) === "rgb")) {
+        mode = "color";
       } else {
-        scale = parts[2];
-        start = parseFloat(parts[1]);
+        mode = "str_value";
       }
-      end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
-      if (end_parts.length === 1) {
-        end = parseFloat(end);
-      } else {
-        end = parseFloat(end_parts[1]);
-      }
-    }
-    if (scale == null) {
-      return start + ((end - start) * frac);
     } else {
-      res = start + ((end - start) * frac);
-      return res.toString() + scale;
+      mode = "int_value";
+    }
+    switch (mode) {
+      case "str_value":
+        parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
+        if (parts.length === 1) {
+          start = parseFloat(start);
+        } else {
+          scale = parts[2];
+          start = parseFloat(parts[1]);
+        }
+        end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
+        if (end_parts.length === 1) {
+          end = parseFloat(end);
+        } else {
+          end = parseFloat(end_parts[1]);
+        }
+        res = start + ((end - start) * frac);
+        return res.toString() + scale;
+      case "color":
+        if (Horizon_VERBOSE) {
+          console.log("Interpolating color (" + start + "->" + end + ")");
+        }
+        start = utils.convert_to_rgba(start);
+        end = utils.convert_to_rgba(end);
+        a = start.map(function(item, idx) {
+          return utils.interpolate_css(item, end[idx], frac);
+        });
+        console.log(a);
+        if (Horizon_VERBOSE) {
+          console.log("Interpolating color (" + start + "->" + end + ")");
+        }
+        return utils.rgba_to_css(start.map(function(item, idx) {
+          return utils.interpolate_css(item, end[idx], frac);
+        }));
+      case "int_value":
+        return start + ((end - start) * frac);
     }
   };
 
@@ -214,6 +240,59 @@
       }
       return element.css(property, utils.interpolate_css(params.start, params.end, offset_frac));
     };
+  };
+
+  utils.convert_to_rgba = function(csscolor) {
+    var a, b, color, g, mode, r, _i, _len, _ref, _results;
+    csscolor = csscolor.toLowerCase();
+    mode = "classic";
+    if (csscolor.slice(0, 4) === "rgb") {
+      mode = "rgb";
+    }
+    r = 0;
+    g = 0;
+    b = 0;
+    a = 1;
+    switch (mode) {
+      case "classic":
+        if (csscolor.length === 4) {
+          r = parseInt(csscolor[1] + csscolor[1], 16);
+          g = parseInt(csscolor[2] + csscolor[2], 16);
+          b = parseInt(csscolor[3] + csscolor[3], 16);
+        } else if (csscolor.length === 7) {
+          r = parseInt(csscolor.slice(1, 3), 16);
+          g = parseInt(csscolor.slice(3, 5), 16);
+          b = parseInt(csscolor.slice(5, 7), 16);
+        }
+        return [r, g, b, a];
+      case "rgb":
+        _ref = csscolor.match(/([0-9]+)/g);
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          color = _ref[_i];
+          _results.push(parseInt(color));
+        }
+        return _results;
+    }
+  };
+
+  utils.rgba_to_css = function(r, g, b, a) {
+    if (a == null) {
+      a = 1;
+    }
+    if (typeof r === "object") {
+      console.log("Got an array! Relaunching.");
+      return utils.rgba_to_css.apply(this, r);
+    }
+    console.log("got the following args: " + r + ", " + g + ", " + b);
+    r = Math.round(r);
+    g = Math.round(g);
+    b = Math.round(b);
+    if (a === 1) {
+      return "rgb(" + r + ", " + g + ", " + b + ")";
+    } else {
+      return "rgb(" + r + ", " + g + ", " + b + ", " + a + ")";
+    }
   };
 
   window.HorizonGenerator.CSSHook = function(selector, animation, options) {
@@ -244,3 +323,7 @@
   };
 
 }).call(this);
+
+/*
+//@ sourceMappingURL=horizon.map
+*/

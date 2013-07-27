@@ -9,6 +9,7 @@
 	body { height: 3000px;
 		background: #0dd;
 		font-family: Arial, Helvetica, sans-serif;
+		margin: 0;
 	}
 	.explain {
 		position: fixed;
@@ -46,8 +47,14 @@
 						start: 10,
 						end: 100
 					}
-				}, {start: 200, size: 200, easing: "easeOutBounce"}))
+				}, {start: 200, size: 200, easing: "easeInOutBack"}))
 
+		c.register_hook(HorizonGenerator.CSSHook("body", {
+					"background-color": {
+						start: "#0dd",
+						end: "#4ff"
+					}
+				}, {start: 200, size: 200}))
 	})
 
 	</script>

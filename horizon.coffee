@@ -60,7 +60,7 @@ class window.HorizonHook
 		# We shouldn't run if the edge state doesn't say we should: 
 		if (@edges_state == -1 and @offset == 0) or (@edges_state == 1 and @offset == @get_range())
 			console.log "Should not run. Edge state: #{@edges_state}" if Horizon_VERBOSE 
-			return false 
+			return false
   
 		if @offset == 0 # We're right at the beginning 
 			if @edges_state == -1 # Minned already. 
@@ -118,30 +118,49 @@ class window.Horizon
 utils.interpolate_css = (start, end, frac) ->
 	#Interpolates between two CSS values. 
 	if typeof start is "string"
-		# Parse scales and stuff.
-		parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
-		if parts.length is 1
-			# This means the user passed a number as a string.
-			start = parseFloat(start)
+		start = start.toLowerCase()
+		end = end.toLowerCase()
+		if (start[0] is "#") or (start[0..2] is "rgb")
+			mode = "color"
 		else
-			scale = parts[2]
-			start = parseFloat(parts[1])
-
-		# Now the end bit.
-		end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
-		if end_parts.length is 1
-			# This means the user passed a number as a string.
-			end = parseFloat(end)
-		else
-			# Scale is implied. May not be the best strategy.
-			end = parseFloat(end_parts[1])
-
-	# It's now known to me that it's a number. In this case, simple interpolation 
-	if not scale?
-		start + ((end - start) * frac)
+			mode = "str_value"
 	else
-		res = (start + ((end - start) * frac))
-		res.toString() + scale
+		mode = "int_value"
+
+	switch mode
+		when "str_value"
+			# Parse scales and stuff.
+			parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
+			if parts.length is 1
+				# This means the user passed a number as a string.
+				start = parseFloat(start)
+			else
+				scale = parts[2]
+				start = parseFloat(parts[1])
+
+			# Now the end bit.
+			end_parts = end.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
+			if end_parts.length is 1
+				# This means the user passed a number as a string.
+				end = parseFloat(end)
+			else
+				# Scale is implied. May not be the best strategy.
+				end = parseFloat(end_parts[1])
+			res = (start + ((end - start) * frac))
+			res.toString() + scale
+		when "color"
+			console.log "Interpolating color (#{start}->#{end})" if Horizon_VERBOSE
+			start = utils.convert_to_rgba(start)
+			end = utils.convert_to_rgba(end) 
+			a= start.map (item, idx) ->
+				utils.interpolate_css item, end[idx], frac
+			console.log a
+			console.log "Interpolating color (#{start}->#{end})" if Horizon_VERBOSE
+			utils.rgba_to_css(start.map (item, idx) ->
+				utils.interpolate_css item, end[idx], frac)
+		when "int_value"
+			start + ((end - start) * frac)
+		
 utils.lambda_for_css_property = (element, property, params) ->
 	# retuns the lambda for property with params to be used in the hook.
 	(offset_frac, offset_rel) ->
@@ -149,6 +168,50 @@ utils.lambda_for_css_property = (element, property, params) ->
 			console.log "Changing CSS property #{property} to 
 			#{utils.interpolate_css(params.start, params.end, offset_frac)}"
 		element.css property, utils.interpolate_css(params.start, params.end, offset_frac)
+
+utils.convert_to_rgba = (csscolor) ->
+	# Converts a CSS color to an RGBA array
+	csscolor = csscolor.toLowerCase()
+	mode = "classic"
+	if csscolor[0..3] is "rgb" then mode = "rgb"
+	r=0
+	g=0
+	b=0
+	a=1
+	switch mode
+		when "classic"
+			# classic css
+			if csscolor.length is 4
+				# Shorthand format
+				r = parseInt csscolor[1] + csscolor[1], 16
+				g = parseInt csscolor[2] + csscolor[2], 16
+				b = parseInt csscolor[3] + csscolor[3], 16
+			else if csscolor.length is 7
+				# long format
+				r = parseInt csscolor[1..2], 16
+				g = parseInt csscolor[3..4], 16
+				b = parseInt csscolor[5..6], 16
+			[r,g,b,a] # return array form
+		when "rgb"
+			# rgb() format
+			parseInt color for color in csscolor.match /([0-9]+)/g
+
+utils.rgba_to_css = (r,g,b,a = 1) ->
+
+	if typeof r is "object"
+		# at this point it is assumed that r is an array representing
+		# rgba values respectively.
+		console.log "Got an array! Relaunching."
+		return utils.rgba_to_css.apply this, r
+	console.log "got the following args: #{r}, #{g}, #{b}"	
+	r = Math.round(r); g = Math.round(g); b = Math.round(b);
+	if a is 1
+		"rgb(#{r}, #{g}, #{b})"
+	else "rgb(#{r}, #{g}, #{b}, #{a})"
+
+		
+	
+
 
 window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	# animation contains a list of properties and their animations. Example: 
