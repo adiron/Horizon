@@ -249,5 +249,11 @@ window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	hook = new HorizonHook options.start, options.start + options.size, f, options.easing
 	hook
 
+window.HorizonGenerator.BinaryHook = (selector, lambda_in, lambda_out) ->
+	# TODO: binary hooks.
+	# For this I'll need to implement a few things for the lambda. Just a meta-state object thing.
+	# I think I might as well just change everything. I'll see.
+	0
+
 window.Horizon.VERBOSE = false 
 window.Horizon.HSL_mode = false
