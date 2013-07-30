@@ -82,7 +82,7 @@ class window.HorizonHook
 		false 
 	  
 class window.Horizon 
-	constructor: (@window = window, skip_bind = false) ->
+	constructor: (@window, skip_bind = false) ->
 		# Where window is either:
 		# * the window DOM object; or
 		# * a function which returns a number which will be used as an offset
@@ -99,30 +99,49 @@ class window.Horizon
 			if not skip_bind 
 				jQuery(@window).scroll =>
 					@refresh()
-
   
 	register_hook: (hook) ->
 		@hooks.push hook
-		@hooks.sort (a,b) -> b.min - a.min
   
 	init_hook: (hook) ->
-		hook.invoke() if hook.should_fire(@get_offset(), true)
+		hook.invoke() if hook.should_fire(@get_offset())
 		hook.initialized = true
 	  
 	new_hook: (min, max, lambda) ->
 		@register_hook(new HorizonHook min, max, lambda)
   
 	refresh: (offset = @get_offset()) ->
-		@init_hook hook for hook in @hooks when not hook.initialized
+		# TODO: sort out a bug where yanking all the way to the bottom
+		# can cause hooks to not execute in the correct order.
+		console.log "offset: #{offset}"
+		# @init_hook hook for hook in @hooks when not hook.initialized
+		# @prepare_hooks(offset)
+		@sort_hooks offset
 		hook.invoke() for hook in @hooks when hook.should_fire(offset)
 
-	prepare_hooks: () ->
+
+	prepare_hooks: (offset = @get_offset()) ->
 		# TODO: make this check if you need to actually load the hook
 		# if there's any other hook that has already been initialized
 		# that preceeds it.
 		# This is to allow prepare_hooks to be run during runtime and
 		# not just once at init.
-		@init_hook hook for hook in @hooks when not hook.initialized
+		# @init_hook hook for hook in @hooks when not hook.initialized
+		@sort_hooks offset
+		@init_hook hook for hook in hook_list when not hook.initialized
+
+		console.log "Done preparing hooks."
+
+	sort_hooks: (offset) ->
+		hooks_before = (hook for hook in @hooks when hook.max < offset)
+		hooks_before.sort (a, b) -> a.max - b.max
+
+		hooks_after = (hook for hook in @hooks when (hook.min > offset) and (hook not in hooks_before))
+		hooks_after.sort (a, b) -> a.min - b.min
+
+
+		hook_list = [].concat(hooks_before, hooks_after)
+		console.log hook_list
 
   
 utils.interpolate_css = (start, end, frac) ->
@@ -254,7 +273,7 @@ window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	hook = new HorizonHook options.start, options.start + options.size, f, options.easing
 	hook
 
-window.HorizonGenerator.BinaryHook = (selector, start, size, lambda_in, lambda_out) ->
+window.HorizonGenerator.BinaryHook = (start, size, lambda_in, lambda_out) ->
 	# TODO: binary hooks.
 	# For this I'll need to implement a few things for the lambda. Just a meta-state object thing.
 	# I think I might as well just change everything. I'll see.

@@ -22,8 +22,6 @@
 		font-size: 21pt;
 		border-radius: 25px;
 		padding: 15px;
-		opacity: 0;
-		filter:  alpha(opacity=0); ZOOM: 1;
 	}
 
 	</style>
@@ -62,6 +60,11 @@
 					}
 				}, {start: 420, size: 600}))
 
+		c.register_hook(HorizonGenerator.BinaryHook(0, 100, function() {
+			$("#explain1").css("width", "100%")
+		}, function() {
+			$("#explain1").css("width", "50%")
+		}))
 		c.prepare_hooks()
 	})
 
@@ -69,10 +72,6 @@
 
 </head>
 <body>
-	<div class="explain" id="intro">
-		Come on, scroll. You know you want to.
-	</div>
-
 
 	<div class="explain" id="explain1">
 		Oh, hi! If you scroll down, this box will start disappearing!
