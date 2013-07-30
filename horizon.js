@@ -346,6 +346,20 @@
     return hook;
   };
 
+  window.HorizonGenerator.BinaryHook = function(selector, start, size, lambda_in, lambda_out) {
+    var f, hook;
+    f = function(offset_frac, offset_rel) {
+      if (offset_frac === 0) {
+        lambda_in(offset_frac, offset_rel);
+      }
+      if (offset_frac === 1) {
+        return lambda_out(offset_frac, offset_rel);
+      }
+    };
+    hook = new HorizonHook(start, start + size, f);
+    return hook;
+  };
+
   window.Horizon.VERBOSE = false;
 
   window.Horizon.HSL_mode = false;
