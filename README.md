@@ -27,6 +27,12 @@ or alternatively:
 								 )
 	)
 
+Then after you're done:
+
+	c.prepare_hooks()
+
+And that's that! Just make sure to call `prepare_hooks` each time you add new hooks.
+
 ## Code documentation
 
 ### *HorizonHook* Class
@@ -60,7 +66,7 @@ Returns the current offset in percents or a fraction respectively.
 
 	should_fire: (absolute_offset = @offset, force_fire = false) ->
 
-Checks whether the hook should fire **but does not invoke it**, where `absolute_offset` is equal to 
+Checks whether the hook should fire **but does not invoke it**, where `absolute_offset` is equal to the absolute offset of the window (by default, or whatever you bound it to).
 
 
 #### Lambda
@@ -82,3 +88,11 @@ The lambda referenced in `HorizonHook` and other places is a function which shou
 If you write your own lambda (which is not optimal, but you might), you don't need to do the easing yourself in the lambda. For greater code portability, just don't.
 
 Easing is defined per hook, and the values your lambda will get will already have been put through the easing function of your choice.
+
+### `HorizonGenerator` object
+
+This object contains a bunch of generators of hooks. Note that they generate hooks that you later have to register yourself.
+
+#### `CSSHook` 
+
+Animate between two ends of a CSS property.

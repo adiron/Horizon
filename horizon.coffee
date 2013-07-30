@@ -117,6 +117,11 @@ class window.Horizon
 		hook.invoke() for hook in @hooks when hook.should_fire(offset)
 
 	prepare_hooks: () ->
+		# TODO: make this check if you need to actually load the hook
+		# if there's any other hook that has already been initialized
+		# that preceeds it.
+		# This is to allow prepare_hooks to be run during runtime and
+		# not just once at init.
 		@init_hook hook for hook in @hooks when not hook.initialized
 
   
