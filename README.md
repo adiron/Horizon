@@ -49,7 +49,7 @@ And that's that! Just make sure to call `prepare_hooks` each time you add new ho
 
 	repr: ()
 
-Returns a Python-esque string representation of the hook. For debugging purposes.
+Returns a human-readable string representation of the hook. (For debugging purposes)
 
 	invoke: ()
 
@@ -95,4 +95,7 @@ This object contains a bunch of generators of hooks. Note that they generate hoo
 
 #### `CSSHook` 
 
-Animate between two ends of a CSS property.
+	HorizonGenerator.CSSHook = (selector, animation, options) ->
+
+Animate between two ends of a CSS property (defined in `animation`) over time defined in `options` for `selector`.
+
