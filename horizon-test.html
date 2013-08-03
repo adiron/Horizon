@@ -31,12 +31,18 @@
 	$(document).ready(function() {
 		c = new Horizon(window)
 
-		c.new_hook(600, 600+255, function(offset_frac, offset) {
-			$("#explain1").css({"opacity": 1 - offset_frac})
-			console.log("Current offset: " + offset_frac)
-		})
+		c.new_hook(
+			600,
+			600+255,
+			function(offset_frac, offset) {
+				$("#explain1").css({"opacity": 1 - offset_frac})
+				console.log("Current offset: " + offset_frac)
+			}
+		)
 
-		c.register_hook(HorizonGenerator.CSSHook("#explain1", {
+		c.register_hook(
+			HorizonGenerator.CSSHook("#explain1",
+				{
 					height: {
 						start: "150pt",
 						end: "300pt"
@@ -45,26 +51,56 @@
 						start: 10,
 						end: 100
 					}
-				}, {start: 200, size: 200, easing: "easeInOutBack"}))
+				},
+				{
+					start: 200,
+					size: 200,
+					easing: "easeInOutBack"
+				}
+			)
+		)
 
-		c.register_hook(HorizonGenerator.CSSHook("body", {
+		c.register_hook(
+			HorizonGenerator.CSSHook("body",
+				{
 					"background-color": {
 						start: "#0dd",
 						end: "#4ff"
 					}
-				}, {start: 200, size: 200}))
-		c.register_hook(HorizonGenerator.CSSHook("body", {
+				},
+				{
+					start: 200,
+					size: 200
+				}
+			)
+		)
+		c.register_hook(
+			HorizonGenerator.CSSHook("body",
+				{
 					"background-color": {
 						start: "#4ff",
 						end: "#f00"
 					}
-				}, {start: 420, size: 600}))
+				},
+				{
+					start: 420,
+					size: 600
+				}
+			)
+		)
 
-		c.register_hook(HorizonGenerator.BinaryHook(0, 100, function() {
-			$("#explain1").css("width", "100%")
-		}, function() {
-			$("#explain1").css("width", "50%")
-		}))
+		c.register_hook(
+			HorizonGenerator.BinaryHook(
+				0,
+				100,
+				function() {
+					$("#explain1").css("width", "100%")
+				},
+				function() {
+					$("#explain1").css("width", "50%")
+				}
+			)
+		)
 		c.prepare_hooks()
 	})
 
