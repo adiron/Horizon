@@ -164,7 +164,9 @@
       if (offset == null) {
         offset = this.get_offset();
       }
-      console.log("offset: " + offset);
+      if (Horizon.VERBOSE) {
+        console.log("offset: " + offset);
+      }
       this.sort_hooks(offset);
       _ref = this.hooks;
       _results = [];
@@ -189,7 +191,9 @@
           this.init_hook(hook);
         }
       }
-      return console.log("Done preparing hooks.");
+      if (Horizon.VERBOSE) {
+        return console.log("Done preparing hooks.");
+      }
     };
 
     Horizon.prototype.sort_hooks = function(offset) {
@@ -225,7 +229,9 @@
         return a.min - b.min;
       });
       hook_list = [].concat(hooks_before, hooks_after);
-      return console.log(hook_list);
+      if (Horizon.VERBOSE) {
+        return console.log(hook_list);
+      }
     };
 
     return Horizon;
@@ -233,7 +239,7 @@
   })();
 
   utils.interpolate_css = function(start, end, frac) {
-    var a, end_parts, mode, parts, res, scale;
+    var curval, end_parts, mode, parts, res, scale;
     if (typeof start === "string") {
       start = start.toLowerCase();
       end = end.toLowerCase();
@@ -247,7 +253,7 @@
     }
     switch (mode) {
       case "str_value":
-        parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/);
+        parts = start.split(/^([+-\d\.]+)([A-Za-z]+)/);
         if (parts.length === 1) {
           start = parseFloat(start);
         } else {
@@ -269,18 +275,32 @@
           }
           start = utils.convert_to_rgba(start);
           end = utils.convert_to_rgba(end);
-          a = start.map(function(item, idx) {
-            return utils.interpolate_css(item, end[idx], frac);
+          curval = start.map(function(el, i) {
+            return utils.interpolate_css(el, end[i], frac);
           });
-          console.log(a);
+          if (Horizon.VERBOSE) {
+            console.log(curval);
+          }
           if (Horizon.VERBOSE) {
             console.log("Interpolating color (" + start + "->" + end + ")");
           }
-          return utils.rgba_to_css(start.map(function(item, idx) {
-            return utils.interpolate_css(item, end[idx], frac);
-          }));
+          return utils.rgba_to_css(curval);
         } else {
-          return 0;
+          if (Horizon.VERBOSE) {
+            console.log("Interpolating color (" + start + "->" + end + ") via HSL");
+          }
+          start = utils.convert_to_hsva(start);
+          end = utils.convert_to_hsva(end);
+          curval = start.map(function(el, i) {
+            return utils.interpolate_css(el, end[i], frac);
+          });
+          if (Horizon.VERBOSE) {
+            console.log(curval);
+          }
+          if (Horizon.VERBOSE) {
+            console.log("Interpolating color (" + start + "->" + end + ") via HSL");
+          }
+          return utils.hsva_to_css(curval);
         }
         break;
       case "int_value":
@@ -311,9 +331,9 @@
     switch (mode) {
       case "classic":
         if (csscolor.length === 4) {
-          r = parseInt(csscolor[1] + csscolor[1], 16);
-          g = parseInt(csscolor[2] + csscolor[2], 16);
-          b = parseInt(csscolor[3] + csscolor[3], 16);
+          r = (parseInt(csscolor[1] + csscolor[1], 16)) / 255;
+          g = (parseInt(csscolor[2] + csscolor[2], 16)) / 255;
+          b = (parseInt(csscolor[3] + csscolor[3], 16)) / 255;
         } else if (csscolor.length === 7) {
           r = parseInt(csscolor.slice(1, 3), 16);
           g = parseInt(csscolor.slice(3, 5), 16);
@@ -325,10 +345,19 @@
         _results = [];
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           color = _ref[_i];
-          _results.push(parseInt(color));
+          _results.push(clamp(parseInt(color), 0, 1));
         }
         return _results;
     }
+  };
+
+  utils.convert_to_hsva = function(csscolor) {
+    var chroma, color, hue, value;
+    color = utils.convert_to_rgba(csscolor);
+    value = Math.max(color.slice(0, 3));
+    chroma = value - (Math.min(color.slice(0, 3)));
+    hue = (value === color[0] ? ((color[1] - color[2]) / chroma + 6) % 6 : value === color[1] ? (color[2] - color[0]) / chroma + 2 : value === color[2] ? (color[0] - color[1]) / chroma + 4 : void 0) * 60;
+    return [hue, chroma, value, color[3]];
   };
 
   utils.rgba_to_css = function(r, g, b, a) {
@@ -336,18 +365,37 @@
       a = 1;
     }
     if (typeof r === "object") {
-      console.log("Got an array! Relaunching.");
+      if (Horizon.VERBOSE) {
+        console.log("Got an array! Relaunching.");
+      }
       return utils.rgba_to_css.apply(this, r);
     }
-    console.log("got the following args: " + r + ", " + g + ", " + b);
-    r = Math.round(r);
-    g = Math.round(g);
-    b = Math.round(b);
-    if (a === 1) {
-      return "rgb(" + r + ", " + g + ", " + b + ")";
-    } else {
-      return "rgb(" + r + ", " + g + ", " + b + ", " + a + ")";
+    if (Horizon.VERBOSE) {
+      console.log("got the following args: " + r + ", " + g + ", " + b);
     }
+    return "rgb(" + r + ", " + g + ", " + b + ", " + a + ")";
+  };
+
+  utils.hsva_to_css = function(h, s, v, a) {
+    var chroma, relhue, x;
+    if (a == null) {
+      a = 1;
+    }
+    if (typeof h === "object") {
+      if (Horizon.VERBOSE) {
+        console.log("Got an array! Relaunching.");
+      }
+      return utils.hsva_to_css.apply(this, h);
+    }
+    if (Horizon.VERBOSE) {
+      console.log("got the following args: " + h + ", " + s + ", " + v);
+    }
+    chroma = s;
+    relhue = h / 60;
+    x = chroma * (1 - Math.abs(relhue % 2 - 1));
+    return utls.rgba_to_css((((0 <= relhue && relhue < 1) ? [chroma, x, 0] : (1 <= relhue && relhue < 2) ? [x, chroma, 0] : (2 <= relhue && relhue < 3) ? [0, chroma, x] : (3 <= relhue && relhue < 4) ? [0, x, chroma] : (4 <= relhue && relhue < 5) ? [x, 0, chroma] : (5 <= relhue && relhue < 6) ? [chroma, 0, x] : void 0).map(function(el, i) {
+      return el + v - chroma;
+    })).concat([a]));
   };
 
   window.HorizonGenerator.CSSHook = function(selector, animation, options) {
@@ -393,10 +441,6 @@
 
   window.Horizon.VERBOSE = false;
 
-  window.Horizon.HSL_mode = false;
+  window.Horizon.HSL_mode = true;
 
 }).call(this);
-
-/*
-//@ sourceMappingURL=horizon.map
-*/

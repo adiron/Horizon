@@ -113,7 +113,7 @@ class window.Horizon
 	refresh: (offset = @get_offset()) ->
 		# TODO: sort out a bug where yanking all the way to the bottom
 		# can cause hooks to not execute in the correct order.
-		console.log "offset: #{offset}"
+		console.log "offset: #{offset}" if Horizon.VERBOSE
 		# @init_hook hook for hook in @hooks when not hook.initialized
 		# @prepare_hooks(offset)
 		@sort_hooks offset
@@ -130,7 +130,7 @@ class window.Horizon
 		@sort_hooks offset
 		@init_hook hook for hook in hook_list when not hook.initialized
 
-		console.log "Done preparing hooks."
+		console.log "Done preparing hooks." if Horizon.VERBOSE
 
 	sort_hooks: (offset) ->
 		hooks_before = (hook for hook in @hooks when hook.max < offset)
@@ -141,7 +141,7 @@ class window.Horizon
 
 
 		hook_list = [].concat(hooks_before, hooks_after)
-		console.log hook_list
+		console.log hook_list if Horizon.VERBOSE
 
   
 utils.interpolate_css = (start, end, frac) ->
@@ -159,11 +159,12 @@ utils.interpolate_css = (start, end, frac) ->
 	switch mode
 		when "str_value"
 			# Parse scales and stuff.
-			parts = start.split(/^([+|-|\d|\.]+)([A-Za-z]+)/)
+			parts = start.split(/^([+-\d\.]+)([A-Za-z]+)/) #TODO: Decrypt this line, please
 			if parts.length is 1
 				# This means the user passed a number as a string.
 				start = parseFloat(start)
 			else
+				# The user passed a number with a unit as a string: "1rem", "3pt", etc.
 				scale = parts[2]
 				start = parseFloat(parts[1])
 
@@ -173,25 +174,47 @@ utils.interpolate_css = (start, end, frac) ->
 				# This means the user passed a number as a string.
 				end = parseFloat(end)
 			else
-				# Scale is implied. May not be the best strategy.
+				# Scale is implied. TODO: make this convert between different units
 				end = parseFloat(end_parts[1])
 			res = (start + ((end - start) * frac))
 			res.toString() + scale
 		when "color"
 			if not Horizon.HSL_mode
+				# Interpolate colours through RGB
 				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
+
+				# Parse start and end colours
 				start = utils.convert_to_rgba(start)
 				end = utils.convert_to_rgba(end) 
-				a= start.map (item, idx) ->
-					utils.interpolate_css item, end[idx], frac
-				console.log a
+
+				# And interpolate each element (red, green, blue, alpha) separately
+				curval = start.map (el, i) ->
+					utils.interpolate_css el, end[i], frac
+
+				console.log curval if Horizon.VERBOSE
 				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
-				utils.rgba_to_css(start.map (item, idx) ->
-					utils.interpolate_css item, end[idx], frac)
+				
+				# Return the result as a nice CSS colour string
+				utils.rgba_to_css(curval)
 			else
 				# HSL mode is on. We have to convert the values to HSL first.
-				# TODO
-				0
+				console.log "Interpolating color (#{start}->#{end}) via HSL" if Horizon.VERBOSE
+
+				# Parse start and end colours
+				start = utils.convert_to_hsva(start)
+				end = utils.convert_to_hsva(end)
+
+				# And interpolate each element (hue, chroma/saturation, value, alpha) separately
+				curval = start.map (el, i) ->
+					utils.interpolate_css el, end[i], frac
+
+				console.log curval if Horizon.VERBOSE
+				console.log "Interpolating color (#{start}->#{end}) via HSL" if Horizon.VERBOSE
+				
+				# Return the result as a nice CSS colour string
+				utils.hsva_to_css(curval)
+
+
 		when "int_value"
 			start + ((end - start) * frac)
 		
@@ -217,9 +240,9 @@ utils.convert_to_rgba = (csscolor) ->
 			# classic css
 			if csscolor.length is 4
 				# Shorthand format
-				r = parseInt csscolor[1] + csscolor[1], 16
-				g = parseInt csscolor[2] + csscolor[2], 16
-				b = parseInt csscolor[3] + csscolor[3], 16
+				r = (parseInt csscolor[1] + csscolor[1], 16) / 255
+				g = (parseInt csscolor[2] + csscolor[2], 16) / 255
+				b = (parseInt csscolor[3] + csscolor[3], 16) / 255
 			else if csscolor.length is 7
 				# long format
 				r = parseInt csscolor[1..2], 16
@@ -228,22 +251,68 @@ utils.convert_to_rgba = (csscolor) ->
 			[r,g,b,a] # return array form
 		when "rgb"
 			# rgb() format
-			parseInt color for color in csscolor.match /([0-9]+)/g
+			(clamp (parseInt color), 0, 1) for color in csscolor.match /([0-9]+)/g
+
+utils.convert_to_hsva = (csscolor) ->
+	# Converts a CSS colour to an HSVA array (technically HCVA, but who cares)
+	# Slight cheating/"reuse": We use convert_to_rgba, then work on the result
+
+	color = utils.convert_to_rgba csscolor
+
+	value = Math.max color.slice(0, 3)
+	chroma = value - (Math.min color.slice(0, 3))
+
+	# Note that the +2 and +4 should both, technically, have %6 done on them (but it's redundant in those two cases)
+	hue = (if value == color[0]
+		((color[1] - color[2]) / chroma + 6) % 6
+	else if value == color[1]
+		(color[2] - color[0]) / chroma + 2
+	else if value == color[2]
+		(color[0] - color[1]) / chroma + 4) * 60
+
+	return [hue, chroma, value, color[3]]
 
 utils.rgba_to_css = (r,g,b,a = 1) ->
 	if typeof r is "object"
 		# at this point it is assumed that r is an array representing
 		# rgba values respectively.
-		console.log "Got an array! Relaunching."
-		return utils.rgba_to_css.apply this, r
-	console.log "got the following args: #{r}, #{g}, #{b}"	
-	r = Math.round(r); g = Math.round(g); b = Math.round(b);
-	if a is 1
-		"rgb(#{r}, #{g}, #{b})"
-	else "rgb(#{r}, #{g}, #{b}, #{a})"
+		console.log "Got an array! Relaunching." if Horizon.VERBOSE
 
-		
+		return utils.rgba_to_css.apply this, r
+	console.log "got the following args: #{r}, #{g}, #{b}" if Horizon.VERBOSE
 	
+	"rgb(#{r}, #{g}, #{b}, #{a})"
+
+utils.hsva_to_css = (h,s,v,a = 1) ->
+	if typeof h is "object"
+		# analogous to rgba_to_css
+		console.log "Got an array! Relaunching." if Horizon.VERBOSE
+
+		return utils.hsva_to_css.apply this, h
+
+	console.log "got the following args: #{h}, #{s}, #{v}" if Horizon.VERBOSE
+
+	chroma = s #See convert_to_hsva
+	relhue = h / 60
+	x = chroma * (1 - Math.abs (relhue % 2 - 1))
+	utls.rgba_to_css (
+		(
+			(
+				if 0 <= relhue < 1
+					[chroma, x, 0]
+				else if 1 <= relhue < 2
+					[x, chroma, 0]
+				else if 2 <= relhue < 3
+					[0, chroma, x]
+				else if 3 <= relhue < 4
+					[0, x, chroma]
+				else if 4 <= relhue < 5
+					[x, 0, chroma]
+				else if 5 <= relhue < 6
+					[chroma, 0, x]
+			).map (el, i) -> el + v - chroma
+		).concat [a]
+	)
 
 
 window.HorizonGenerator.CSSHook = (selector, animation, options) ->
@@ -287,4 +356,4 @@ window.HorizonGenerator.BinaryHook = (start, size, lambda_in, lambda_out) ->
 	hook
 
 window.Horizon.VERBOSE = false 
-window.Horizon.HSL_mode = false
+window.Horizon.HSL_mode = true
