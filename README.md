@@ -99,3 +99,8 @@ This object contains a bunch of generators of hooks. Note that they generate hoo
 
 Animate between two ends of a CSS property (defined in `animation`) over time defined in `options` for `selector`.
 
+#### `BinaryHook`
+
+	HorizonGenerator.BinaryHook = (start, size, lambda_in, lambda_out) ->
+
+A hook that does something when entered, and does something when left, as specified by `lambda_in` and `lambda_out`, respectively. `start` and `size` deine the timeframe for the hook to be `lambda_in`ned.
