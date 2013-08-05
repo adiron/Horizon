@@ -495,10 +495,10 @@
   window.HorizonGenerator.BinaryHook = function(start, size, lambda_in, lambda_out) {
     var f, hook;
     f = function(offset_frac, offset_rel) {
-      if (offset_frac === 0) {
+      if (offset_frac <= 0) {
         lambda_in(offset_frac, offset_rel);
       }
-      if (offset_frac === 1) {
+      if (offset_frac >= 1) {
         return lambda_out(offset_frac, offset_rel);
       }
     };

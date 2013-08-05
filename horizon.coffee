@@ -369,13 +369,12 @@ window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	hook
 
 window.HorizonGenerator.BinaryHook = (start, size, lambda_in, lambda_out) ->
-	# TODO: binary hooks.
 	# For this I'll need to implement a few things for the lambda. Just a meta-state object thing.
 	# I think I might as well just change everything. I'll see.
 	f = (offset_frac, offset_rel) ->
-		if offset_frac == 0
+		if offset_frac <= 0
 			lambda_in offset_frac, offset_rel
-		if offset_frac == 1
+		if offset_frac >= 1
 			lambda_out offset_frac, offset_rel
 
 	hook = new HorizonHook start, start+size, f
