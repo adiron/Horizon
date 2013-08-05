@@ -180,11 +180,11 @@
     };
 
     Horizon.prototype.prepare_hooks = function(offset) {
-      var hook, _i, _len;
+      var hook, hook_list, _i, _len;
       if (offset == null) {
         offset = this.get_offset();
       }
-      this.sort_hooks(offset);
+      hook_list = this.sort_hooks(offset);
       for (_i = 0, _len = hook_list.length; _i < _len; _i++) {
         hook = hook_list[_i];
         if (!hook.initialized) {
@@ -219,19 +219,20 @@
         _results = [];
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           hook = _ref[_i];
-          if ((hook.min > offset) && (__indexOf.call(hooks_before, hook) < 0)) {
+          if ((hook.min >= offset) && (__indexOf.call(hooks_before, hook) < 0)) {
             _results.push(hook);
           }
         }
         return _results;
       }).call(this);
       hooks_after.sort(function(a, b) {
-        return a.min - b.min;
+        return b.min - a.min;
       });
-      hook_list = [].concat(hooks_before, hooks_after);
+      hook_list = hooks_before.concat(hooks_after);
       if (Horizon.VERBOSE) {
-        return console.log(hook_list);
+        console.log(hook_list);
       }
+      return hook_list;
     };
 
     return Horizon;
@@ -269,7 +270,7 @@
         res = start + ((end - start) * frac);
         return res.toString() + scale;
       case "color":
-        if (!Horizon.HSL_mode) {
+        if (!Horizon.HSV_mode) {
           if (Horizon.VERBOSE) {
             console.log("Interpolating color (" + start + "->" + end + ")");
           }
@@ -287,24 +288,35 @@
           return utils.rgba_to_css(curval);
         } else {
           if (Horizon.VERBOSE) {
-            console.log("Interpolating color (" + start + "->" + end + ") via HSL");
+            console.log("Interpolating color (" + start + "->" + end + ") via HSV");
           }
           start = utils.convert_to_hsva(start);
           end = utils.convert_to_hsva(end);
-          curval = start.map(function(el, i) {
-            return utils.interpolate_css(el, end[i], frac);
-          });
+          curval = [utils.interpolate_hue(start[0], end[0], frac)].concat(start.slice(1).map(function(el, i) {
+            return utils.interpolate_css(el, end[i + 1], frac);
+          }));
           if (Horizon.VERBOSE) {
             console.log(curval);
           }
           if (Horizon.VERBOSE) {
-            console.log("Interpolating color (" + start + "->" + end + ") via HSL");
+            console.log("Interpolating color (" + start + "->" + end + ") via HSV");
           }
           return utils.hsva_to_css(curval);
         }
         break;
       case "int_value":
         return start + ((end - start) * frac);
+    }
+  };
+
+  utils.interpolate_hue = function(start, end, frac) {
+    var distance_neg, distance_pos, posend;
+    distance_neg = Math.abs(end - start);
+    distance_pos = Math.abs((posend = (end < frac ? end + 360 : end - 360)) - start);
+    if (distance_neg <= distance_pos) {
+      return utils.interpolate_css(start, end, frac);
+    } else {
+      return utils.interpolate_css(start, end + posend, frac);
     }
   };
 
@@ -318,10 +330,10 @@
   };
 
   utils.convert_to_rgba = function(csscolor) {
-    var a, b, color, g, mode, r, _i, _len, _ref, _results;
+    var a, atmp, b, color, g, mode, r, _ref;
     csscolor = csscolor.toLowerCase();
     mode = "classic";
-    if (csscolor.slice(0, 4) === "rgb") {
+    if (csscolor.slice(0, 3) === "rgb") {
       mode = "rgb";
     }
     r = 0;
@@ -331,33 +343,58 @@
     switch (mode) {
       case "classic":
         if (csscolor.length === 4) {
-          r = (parseInt(csscolor[1] + csscolor[1], 16)) / 255;
-          g = (parseInt(csscolor[2] + csscolor[2], 16)) / 255;
-          b = (parseInt(csscolor[3] + csscolor[3], 16)) / 255;
+          r = parseInt(csscolor[1] + csscolor[1], 16);
+          g = parseInt(csscolor[2] + csscolor[2], 16);
+          b = parseInt(csscolor[3] + csscolor[3], 16);
         } else if (csscolor.length === 7) {
           r = parseInt(csscolor.slice(1, 3), 16);
           g = parseInt(csscolor.slice(3, 5), 16);
           b = parseInt(csscolor.slice(5, 7), 16);
         }
-        return [r, g, b, a];
+        break;
       case "rgb":
-        _ref = csscolor.match(/([0-9]+)/g);
-        _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          color = _ref[_i];
-          _results.push(clamp(parseInt(color), 0, 1));
+        _ref = (function() {
+          var _i, _len, _ref, _results;
+          _ref = csscolor.match(/([0-9]+)/g);
+          _results = [];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            color = _ref[_i];
+            _results.push(parseInt(color));
+          }
+          return _results;
+        })(), r = _ref[0], g = _ref[1], b = _ref[2], atmp = _ref[3];
+        if (atmp != null) {
+          a = atmp;
         }
-        return _results;
     }
+    return [r, g, b, a];
   };
 
   utils.convert_to_hsva = function(csscolor) {
-    var chroma, color, hue, value;
+    var chroma, color, hue, saturation, value;
     color = utils.convert_to_rgba(csscolor);
-    value = Math.max(color.slice(0, 3));
-    chroma = value - (Math.min(color.slice(0, 3)));
-    hue = (value === color[0] ? ((color[1] - color[2]) / chroma + 6) % 6 : value === color[1] ? (color[2] - color[0]) / chroma + 2 : value === color[2] ? (color[0] - color[1]) / chroma + 4 : void 0) * 60;
-    return [hue, chroma, value, color[3]];
+    if (Horizon.VERBOSE) {
+      console.log("Colour " + csscolor + " was converted into array: " + color);
+    }
+    color = (color.slice(0, 3).map(function(el, i) {
+      return el / 255.0;
+    })).concat(color[3]);
+    if (Horizon.VERBOSE) {
+      console.log("And its array is now: " + color);
+    }
+    value = Math.max.apply(Math, color.slice(0, 3));
+    chroma = value - (Math.min.apply(Math, color.slice(0, 3)));
+    hue = 0;
+    if (value === color[0]) {
+      hue = (1.0 * (color[1] - color[2]) / chroma + 6) % 6;
+    } else if (value === color[1]) {
+      hue = 1.0 * (color[2] - color[0]) / chroma + 2;
+    } else if (value === color[2]) {
+      hue = 1.0 * (color[0] - color[1]) / chroma + 4;
+    }
+    hue *= 60;
+    saturation = chroma === 0 ? 0 : 1.0 * chroma / value;
+    return [hue, saturation, value, color[3]];
   };
 
   utils.rgba_to_css = function(r, g, b, a) {
@@ -368,16 +405,16 @@
       if (Horizon.VERBOSE) {
         console.log("Got an array! Relaunching.");
       }
-      return utils.rgba_to_css.apply(this, r);
+      return utils.rgba_to_css.apply(utils, r);
     }
     if (Horizon.VERBOSE) {
       console.log("got the following args: " + r + ", " + g + ", " + b);
     }
-    return "rgb(" + r + ", " + g + ", " + b + ", " + a + ")";
+    return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")";
   };
 
   utils.hsva_to_css = function(h, s, v, a) {
-    var chroma, relhue, x;
+    var chroma, color, el, relcolor, relhue, result, x;
     if (a == null) {
       a = 1;
     }
@@ -385,17 +422,47 @@
       if (Horizon.VERBOSE) {
         console.log("Got an array! Relaunching.");
       }
-      return utils.hsva_to_css.apply(this, h);
+      return utils.hsva_to_css.apply(utils, h);
     }
     if (Horizon.VERBOSE) {
-      console.log("got the following args: " + h + ", " + s + ", " + v);
+      console.log("hsv got the following args: " + h + ", " + s + ", " + v);
     }
-    chroma = s;
-    relhue = h / 60;
+    while (h < 0) {
+      h += 360;
+    }
+    chroma = s * v;
+    relhue = (h % 360) / 60.0;
     x = chroma * (1 - Math.abs(relhue % 2 - 1));
-    return utls.rgba_to_css((((0 <= relhue && relhue < 1) ? [chroma, x, 0] : (1 <= relhue && relhue < 2) ? [x, chroma, 0] : (2 <= relhue && relhue < 3) ? [0, chroma, x] : (3 <= relhue && relhue < 4) ? [0, x, chroma] : (4 <= relhue && relhue < 5) ? [x, 0, chroma] : (5 <= relhue && relhue < 6) ? [chroma, 0, x] : void 0).map(function(el, i) {
-      return el + v - chroma;
+    relcolor = [0, 0, 0];
+    if ((0 <= relhue && relhue < 1)) {
+      relcolor = [chroma, x, 0];
+    } else if ((1 <= relhue && relhue < 2)) {
+      relcolor = [x, chroma, 0];
+    } else if ((2 <= relhue && relhue < 3)) {
+      relcolor = [0, chroma, x];
+    } else if ((3 <= relhue && relhue < 4)) {
+      relcolor = [0, x, chroma];
+    } else if ((4 <= relhue && relhue < 5)) {
+      relcolor = [x, 0, chroma];
+    } else if ((5 <= relhue && relhue < 6)) {
+      relcolor = [chroma, 0, x];
+    }
+    color = ((function() {
+      var _i, _len, _results;
+      _results = [];
+      for (_i = 0, _len = relcolor.length; _i < _len; _i++) {
+        el = relcolor[_i];
+        _results.push(el + v - chroma);
+      }
+      return _results;
+    })()).concat(a);
+    result = utils.rgba_to_css((relcolor.map(function(el, i) {
+      return Math.floor((el + v - chroma) * 255.0);
     })).concat([a]));
+    if (Horizon.VERBOSE) {
+      console.log("Got " + result);
+    }
+    return result;
   };
 
   window.HorizonGenerator.CSSHook = function(selector, animation, options) {
@@ -441,6 +508,10 @@
 
   window.Horizon.VERBOSE = false;
 
-  window.Horizon.HSL_mode = true;
+  window.Horizon.HSV_mode = true;
 
 }).call(this);
+
+/*
+//@ sourceMappingURL=horizon.map
+*/

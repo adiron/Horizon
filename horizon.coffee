@@ -127,7 +127,7 @@ class window.Horizon
 		# This is to allow prepare_hooks to be run during runtime and
 		# not just once at init.
 		# @init_hook hook for hook in @hooks when not hook.initialized
-		@sort_hooks offset
+		hook_list = @sort_hooks offset
 		@init_hook hook for hook in hook_list when not hook.initialized
 
 		console.log "Done preparing hooks." if Horizon.VERBOSE
@@ -136,12 +136,15 @@ class window.Horizon
 		hooks_before = (hook for hook in @hooks when hook.max < offset)
 		hooks_before.sort (a, b) -> a.max - b.max
 
-		hooks_after = (hook for hook in @hooks when (hook.min > offset) and (hook not in hooks_before))
-		hooks_after.sort (a, b) -> a.min - b.min
+		hooks_after = (hook for hook in @hooks when (hook.min >= offset) and (hook not in hooks_before))
+		hooks_after.sort (a, b) -> b.min - a.min
 
 
-		hook_list = [].concat(hooks_before, hooks_after)
+		hook_list = hooks_before.concat hooks_after
 		console.log hook_list if Horizon.VERBOSE
+
+		# return the sorted list
+		hook_list
 
   
 utils.interpolate_css = (start, end, frac) ->
@@ -179,7 +182,7 @@ utils.interpolate_css = (start, end, frac) ->
 			res = (start + ((end - start) * frac))
 			res.toString() + scale
 		when "color"
-			if not Horizon.HSL_mode
+			if not Horizon.HSV_mode
 				# Interpolate colours through RGB
 				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
 
@@ -195,28 +198,38 @@ utils.interpolate_css = (start, end, frac) ->
 				console.log "Interpolating color (#{start}->#{end})" if Horizon.VERBOSE
 				
 				# Return the result as a nice CSS colour string
-				utils.rgba_to_css(curval)
+				return utils.rgba_to_css curval
 			else
-				# HSL mode is on. We have to convert the values to HSL first.
-				console.log "Interpolating color (#{start}->#{end}) via HSL" if Horizon.VERBOSE
+				# HSV mode is on. We have to convert the values to HSV first.
+				console.log "Interpolating color (#{start}->#{end}) via HSV" if Horizon.VERBOSE
 
 				# Parse start and end colours
 				start = utils.convert_to_hsva(start)
 				end = utils.convert_to_hsva(end)
 
 				# And interpolate each element (hue, chroma/saturation, value, alpha) separately
-				curval = start.map (el, i) ->
-					utils.interpolate_css el, end[i], frac
+				curval = [(utils.interpolate_hue start[0], end[0], frac)].concat (start[1..].map (el, i) ->
+					utils.interpolate_css el, end[i + 1], frac)
 
 				console.log curval if Horizon.VERBOSE
-				console.log "Interpolating color (#{start}->#{end}) via HSL" if Horizon.VERBOSE
+				console.log "Interpolating color (#{start}->#{end}) via HSV" if Horizon.VERBOSE
 				
 				# Return the result as a nice CSS colour string
-				utils.hsva_to_css(curval)
+				return utils.hsva_to_css curval
 
 
 		when "int_value"
 			start + ((end - start) * frac)
+
+utils.interpolate_hue = (start, end, frac) ->
+	# Because degrees go in a circle, and circles are bitches who wrap around 360° back to 0°
+	distance_neg = Math.abs end - start
+	distance_pos = Math.abs (posend = (if end < frac then end + 360 else end - 360)) - start
+
+	if distance_neg <= distance_pos
+		utils.interpolate_css(start, end, frac)
+	else
+		utils.interpolate_css(start, end + posend, frac)
 		
 utils.lambda_for_css_property = (element, property, params) ->
 	# retuns the lambda for property with params to be used in the hook.
@@ -230,7 +243,7 @@ utils.convert_to_rgba = (csscolor) ->
 	# Converts a CSS color to an RGBA array
 	csscolor = csscolor.toLowerCase()
 	mode = "classic"
-	if csscolor[0..3] is "rgb" then mode = "rgb"
+	if csscolor[0..2] is "rgb" then mode = "rgb"
 	r=0
 	g=0
 	b=0
@@ -240,37 +253,46 @@ utils.convert_to_rgba = (csscolor) ->
 			# classic css
 			if csscolor.length is 4
 				# Shorthand format
-				r = (parseInt csscolor[1] + csscolor[1], 16) / 255
-				g = (parseInt csscolor[2] + csscolor[2], 16) / 255
-				b = (parseInt csscolor[3] + csscolor[3], 16) / 255
+				r = parseInt csscolor[1] + csscolor[1], 16
+				g = parseInt csscolor[2] + csscolor[2], 16
+				b = parseInt csscolor[3] + csscolor[3], 16
 			else if csscolor.length is 7
 				# long format
 				r = parseInt csscolor[1..2], 16
 				g = parseInt csscolor[3..4], 16
 				b = parseInt csscolor[5..6], 16
-			[r,g,b,a] # return array form
 		when "rgb"
 			# rgb() format
-			(clamp (parseInt color), 0, 1) for color in csscolor.match /([0-9]+)/g
+			[r, g, b, atmp] = (parseInt color for color in csscolor.match /([0-9]+)/g)
+			if atmp? then a = atmp
+	[r, g, b, a]
+			
 
 utils.convert_to_hsva = (csscolor) ->
-	# Converts a CSS colour to an HSVA array (technically HCVA, but who cares)
+	# Converts a CSS colour to an HSVA array
 	# Slight cheating/"reuse": We use convert_to_rgba, then work on the result
 
 	color = utils.convert_to_rgba csscolor
+	console.log "Colour #{csscolor} was converted into array: #{color}" if Horizon.VERBOSE
+	color = (color[0..2].map (el, i) -> el / 255.0).concat color[3]
+	console.log "And its array is now: #{color}" if Horizon.VERBOSE
 
-	value = Math.max color.slice(0, 3)
-	chroma = value - (Math.min color.slice(0, 3))
+	value = Math.max color[0..2]...
+	chroma = value - (Math.min color[0..2]...)
 
 	# Note that the +2 and +4 should both, technically, have %6 done on them (but it's redundant in those two cases)
-	hue = (if value == color[0]
-		((color[1] - color[2]) / chroma + 6) % 6
+	hue = 0
+	if value == color[0]
+		hue = (1.0 * (color[1] - color[2]) / chroma + 6) % 6
 	else if value == color[1]
-		(color[2] - color[0]) / chroma + 2
+		hue = 1.0 * (color[2] - color[0]) / chroma + 2
 	else if value == color[2]
-		(color[0] - color[1]) / chroma + 4) * 60
+		hue = 1.0 * (color[0] - color[1]) / chroma + 4
+	hue *= 60
 
-	return [hue, chroma, value, color[3]]
+	saturation = if chroma == 0 then 0 else 1.0 * chroma / value
+
+	return [hue, saturation, value, color[3]]
 
 utils.rgba_to_css = (r,g,b,a = 1) ->
 	if typeof r is "object"
@@ -278,42 +300,46 @@ utils.rgba_to_css = (r,g,b,a = 1) ->
 		# rgba values respectively.
 		console.log "Got an array! Relaunching." if Horizon.VERBOSE
 
-		return utils.rgba_to_css.apply this, r
+		return utils.rgba_to_css r...
 	console.log "got the following args: #{r}, #{g}, #{b}" if Horizon.VERBOSE
 	
-	"rgb(#{r}, #{g}, #{b}, #{a})"
+	"rgba(#{r}, #{g}, #{b}, #{a})"
 
 utils.hsva_to_css = (h,s,v,a = 1) ->
 	if typeof h is "object"
 		# analogous to rgba_to_css
 		console.log "Got an array! Relaunching." if Horizon.VERBOSE
 
-		return utils.hsva_to_css.apply this, h
+		return utils.hsva_to_css h...
 
-	console.log "got the following args: #{h}, #{s}, #{v}" if Horizon.VERBOSE
+	console.log "hsv got the following args: #{h}, #{s}, #{v}" if Horizon.VERBOSE
 
-	chroma = s #See convert_to_hsva
-	relhue = h / 60
+	while h < 0
+		h += 360 # JS modulus doesn't like negatives...
+
+	chroma = s * v
+	relhue = (h % 360) / 60.0
 	x = chroma * (1 - Math.abs (relhue % 2 - 1))
-	utls.rgba_to_css (
-		(
-			(
-				if 0 <= relhue < 1
-					[chroma, x, 0]
-				else if 1 <= relhue < 2
-					[x, chroma, 0]
-				else if 2 <= relhue < 3
-					[0, chroma, x]
-				else if 3 <= relhue < 4
-					[0, x, chroma]
-				else if 4 <= relhue < 5
-					[x, 0, chroma]
-				else if 5 <= relhue < 6
-					[chroma, 0, x]
-			).map (el, i) -> el + v - chroma
-		).concat [a]
-	)
 
+	relcolor = [0, 0, 0]
+	if 0 <= relhue < 1
+		relcolor = [chroma, x, 0]
+	else if 1 <= relhue < 2
+		relcolor = [x, chroma, 0]
+	else if 2 <= relhue < 3
+		relcolor = [0, chroma, x]
+	else if 3 <= relhue < 4
+		relcolor = [0, x, chroma]
+	else if 4 <= relhue < 5
+		relcolor = [x, 0, chroma]
+	else if 5 <= relhue < 6
+		relcolor = [chroma, 0, x]
+	
+	color = (el + v - chroma for el in relcolor).concat(a)
+	result = utils.rgba_to_css ((relcolor.map (el, i) -> (Math.floor ((el + v - chroma) * 255.0))).concat [a])
+	console.log "Got #{result}" if Horizon.VERBOSE
+
+	return result
 
 window.HorizonGenerator.CSSHook = (selector, animation, options) ->
 	# animation contains a list of properties and their animations. Example: 
@@ -355,5 +381,5 @@ window.HorizonGenerator.BinaryHook = (start, size, lambda_in, lambda_out) ->
 	hook = new HorizonHook start, start+size, f
 	hook
 
-window.Horizon.VERBOSE = false 
-window.Horizon.HSL_mode = true
+window.Horizon.VERBOSE = false
+window.Horizon.HSV_mode = true
